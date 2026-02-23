@@ -38,3 +38,15 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### Environment Variables ###
+.env
+.env.local
+*.env
+
+### Database ###
+*.db
+!build/*.db
+
+### Local Configuration ###
+local.properties
