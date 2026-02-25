@@ -70,3 +70,7 @@ tasks.withType<Test> {
 sourceSets.main {
 	java.srcDirs("build/generated/ksp/main/kotlin")
 }
+
+tasks {
+	create("stage").dependsOn("installDist")
+}
