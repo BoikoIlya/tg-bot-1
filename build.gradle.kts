@@ -113,3 +113,10 @@ tasks.startScripts {
 	dependsOn(tasks.shadowJar)
 	enabled = false // Отключаем создание стартовых скриптов
 }
+
+// Добавьте это в самый конец файла build.gradle.kts
+tasks.register("stage") {
+	dependsOn("shadowJar")
+	group = "heroku"
+	description = "Builds the shadow JAR for Heroku deployment"
+}
