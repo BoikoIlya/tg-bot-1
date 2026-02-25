@@ -1,9 +1,15 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 plugins {
 	kotlin("jvm") version "2.3.0"
 	alias(libs.plugins.com.google.devtools.ksp)
 	application
+	id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
+application {
+	mainClass.set("com.kamancho.bot.app.MyAppKt")
+}
 
 java {
 	toolchain {
@@ -71,6 +77,39 @@ sourceSets.main {
 	java.srcDirs("build/generated/ksp/main/kotlin")
 }
 
-tasks {
-	create("stage").dependsOn("installDist")
+tasks.withType<ShadowJar> {
+	archiveBaseName.set("bot")
+	archiveClassifier.set("")
+	archiveVersion.set("")
+
+	manifest {
+		attributes(
+			"Main-Class" to "com.kamancho.bot.app.MyAppKt"
+		)
+	}
+
+	// Важно для корректной работы конфигурации
+	mergeServiceFiles()
+	exclude("META-INF/*.SF")
+	exclude("META-INF/*.DSA")
+	exclude("META-INF/*.RSA")
+}
+
+tasks.jar {
+	enabled = false // Отключаем создание стандартного пустого JAR
+}
+
+tasks.distZip {
+	dependsOn(tasks.shadowJar)
+	enabled = false // Отключаем, если не нужны zip-дистрибутивы
+}
+
+tasks.distTar {
+	dependsOn(tasks.shadowJar)
+	enabled = false // Отключаем, если не нужны tar-дистрибутивы
+}
+
+tasks.startScripts {
+	dependsOn(tasks.shadowJar)
+	enabled = false // Отключаем создание стартовых скриптов
 }
