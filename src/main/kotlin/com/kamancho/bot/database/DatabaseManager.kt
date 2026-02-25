@@ -66,46 +66,29 @@ class DatabaseManager(
 ) {
 
     fun init() {
-        // Parse DATABASE_URL from environment (Heroku format: postgres://user:pass@host:port/dbname)
         val databaseUrl = dbUrl ?: System.getenv("DATABASE_URL")
-            ?: throw IllegalStateException("DATABASE_URL environment variable not set")
+        ?: throw IllegalStateException("DATABASE_URL environment variable not set")
 
-        // Heroku provides postgres:// but we need jdbc:postgresql://
-        val jdbcUrl = if (databaseUrl.startsWith("postgres://")) {
-            databaseUrl.replaceFirst("postgres://", "jdbc:postgresql://")
-        } else if (databaseUrl.startsWith("jdbc:postgresql://")) {
-            databaseUrl
-        } else {
-            throw IllegalStateException("Invalid DATABASE_URL format")
+        // Сначала парсим URL для получения credentials
+        val uri = java.net.URI(databaseUrl.replace("postgres://", "http://"))
+        val userInfo = uri.userInfo?.split(":")
+
+        if (userInfo == null || userInfo.size != 2) {
+            throw IllegalStateException("Invalid DATABASE_URL format: missing credentials")
         }
 
-        // Extract credentials from URL if not provided separately
-        val dbUser = user ?: System.getenv("DB_USER")
-        val dbPassword = password ?: System.getenv("DB_PASSWORD")
+        val username = userInfo[0]
+        val password = userInfo[1]
 
-        if (dbUser != null && dbPassword != null) {
-            Database.connect(
-                url = jdbcUrl,
-                driver = "org.postgresql.Driver",
-                user = dbUser,
-                password = dbPassword
-            )
-        } else {
-            // Parse user:pass from URL (Heroku style)
-            val uri = java.net.URI(databaseUrl.replace("postgres://", "http://"))
-            val userInfo = uri.userInfo
-            if (userInfo != null) {
-                val parts = userInfo.split(":")
-                Database.connect(
-                    url = jdbcUrl,
-                    driver = "org.postgresql.Driver",
-                    user = parts[0],
-                    password = parts[1]
-                )
-            } else {
-                throw IllegalStateException("Database credentials not found in DATABASE_URL")
-            }
-        }
+        // Формируем JDBC URL без credentials в хосте
+        val jdbcUrl = "jdbc:postgresql://${uri.host}:${uri.port}${uri.path}"
+
+        Database.connect(
+            url = jdbcUrl,
+            driver = "org.postgresql.Driver",
+            user = username,
+            password = password
+        )
         
         transaction {
             SchemaUtils.createMissingTablesAndColumns(
