@@ -1,1 +1,1 @@
-web: java -jar build/libs/bot-all.jar
+web: java -jar build/libs/bot.jar
