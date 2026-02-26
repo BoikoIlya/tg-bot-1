@@ -13,13 +13,15 @@ class CustomExceptionHandler(bot: TelegramBot, template: MessageTemplate, templa
 
     override suspend fun caught(chat: Chat, ex: Throwable) {
         // Track error in Mixpanel
-        GlobalRepo.getAnalytics()?.trackError(
-            errorType = ex.javaClass.simpleName,
-            errorMessage = ex.message ?: "Unknown error",
-            userId = chat.id,
-            chatId = chat.id,
-            context = mapOf("chatType" to (chat.type ?: "unknown"))
-        )
+        if(ex.message?.contains("Unexpected message") == false) {
+            GlobalRepo.getAnalytics()?.trackError(
+                errorType = ex.javaClass.simpleName,
+                errorMessage = ex.message ?: "Unknown error",
+                userId = chat.id,
+                chatId = chat.id,
+                context = mapOf("chatType" to (chat.type ?: "unknown"))
+            )
+        }
 
         when (ex) {
             is CustomException -> bot.sendMessage(chat.id, ex.localizedMessage)

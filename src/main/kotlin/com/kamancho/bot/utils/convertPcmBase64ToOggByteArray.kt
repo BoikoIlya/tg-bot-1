@@ -7,7 +7,9 @@ import java.util.Base64
 fun convertPcmBase64ToOggByteArray(base64Pcm: String): ByteArray {
     val pcmBytes = Base64.getDecoder().decode(base64Pcm)
 
-    val ffmpegPath = "/app/vendor/ffmpeg/ffmpeg"  // Loader.load(ffmpeg::class.java)
+    val isLocalLaunch  = System.getenv("DB_USER").equals("admin")
+    val ffmpegPath = if(isLocalLaunch) Loader.load(ffmpeg::class.java)
+                     else "/app/vendor/ffmpeg/ffmpeg"
 
     val pb = ProcessBuilder(
         ffmpegPath,

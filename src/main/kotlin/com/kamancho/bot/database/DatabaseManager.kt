@@ -69,19 +69,22 @@ class DatabaseManager(
         val databaseUrl = dbUrl ?: System.getenv("DATABASE_URL")
         ?: throw IllegalStateException("DATABASE_URL environment variable not set")
 
+        val isLocalLaunch  = System.getenv("DB_USER").equals("admin")
+
         // Сначала парсим URL для получения credentials
         val uri = java.net.URI(databaseUrl.replace("postgres://", "http://"))
         val userInfo = uri.userInfo?.split(":")
 
-        if (userInfo == null || userInfo.size != 2) {
+        if (!isLocalLaunch && (userInfo == null || userInfo.size != 2)) {
             throw IllegalStateException("Invalid DATABASE_URL format: missing credentials")
         }
 
-        val username = userInfo[0]
-        val password = userInfo[1]
+        val username = userInfo?.getOrNull(0) ?: System.getenv("DB_USER")
+        val password = userInfo?.getOrNull(1) ?: System.getenv("DB_PASSWORD")
 
         // Формируем JDBC URL без credentials в хосте
-        val jdbcUrl = "jdbc:postgresql://${uri.host}:${uri.port}${uri.path}"
+        val jdbcUrl = if(System.getenv("DB_USER").equals("admin")) databaseUrl
+        else "jdbc:postgresql://${uri.host}:${uri.port}${uri.path}"
 
         Database.connect(
             url = jdbcUrl,
@@ -97,25 +100,6 @@ class DatabaseManager(
                 PromoCodes,
                 UsedPromoCodes
             )
-            
-            // Insert default promo codes
-            val defaultPromoCodes = listOf(
-                "FREE30" to 30,
-                "WELCOME7" to 7,
-                "TRIAL3" to 3
-            )
-            
-            defaultPromoCodes.forEach { (code, days) ->
-                val exists = PromoCodes.selectAll().where { PromoCodes.code eq code }.count() > 0
-                if (!exists) {
-                    PromoCodes.insert {
-                        it[PromoCodes.code] = code
-                        it[PromoCodes.durationDays] = days
-                        it[PromoCodes.maxUses] = 1000
-                        it[PromoCodes.isActive] = true
-                    }
-                }
-            }
         }
     }
     
