@@ -24,17 +24,18 @@ fun BotUpdateHandling.handleSubscriptionMessages(bot: TelegramBot) {
         val text = text
         val voice = voice
         val payment = successfulPayment
+        val countryCode = from?.languageCode
 
         // Handle different message types
         when {
             // 1. PAYMENT SUCCESS
-            payment != null -> handlePayment(bot, chatId, payment)
-            
+            payment != null -> handlePayment(bot, chatId, payment, countryCode)
+
             // 2. PROMO CODE (only if user is in waiting list)
-            text != null && GlobalRepo.promoWaiting.contains(chatId) -> handlePromoCode(bot, chatId, text)
-            
+            text != null && GlobalRepo.promoWaiting.contains(chatId) -> handlePromoCode(bot, chatId, text, countryCode)
+
             // 3. VOICE MESSAGE
-            voice != null -> handleVoiceMessage(bot, chatId, voice)
+            voice != null -> handleVoiceMessage(bot, chatId, voice, countryCode)
 
             // 4. MENU BUTTON PRESSED
             text == "🏠 Main Menu" -> handleMenuRequest(bot, chatId)
@@ -54,7 +55,8 @@ fun BotUpdateHandling.handleSubscriptionMessages(bot: TelegramBot) {
 private suspend fun BotUpdateHandling.handlePayment(
     bot: TelegramBot,
     chatId: Long,
-    payment: io.github.dehuckakpyt.telegrambot.model.telegram.SuccessfulPayment
+    payment: io.github.dehuckakpyt.telegrambot.model.telegram.SuccessfulPayment,
+    countryCode: String? = null
 ) {
     println("[PAYMENT] Processing payment for chat $chatId")
 
@@ -85,7 +87,8 @@ private suspend fun BotUpdateHandling.handlePayment(
             amount = amount.toLong(),
             currency = "USD",
             subscriptionType = subscriptionType.first.name,
-            chargeId = chargeId
+            chargeId = chargeId,
+            countryCode = countryCode
         )
 
         // Track subscription activated
@@ -93,7 +96,8 @@ private suspend fun BotUpdateHandling.handlePayment(
             userId = chatId,
             subscriptionType = subscriptionType.first.name,
             durationDays = subscriptionType.second,
-            method = "payment"
+            method = "payment",
+            countryCode = countryCode
         )
 
         bot.sendMessage(
@@ -126,7 +130,8 @@ private suspend fun BotUpdateHandling.handlePayment(
 private suspend fun BotUpdateHandling.handlePromoCode(
     bot: TelegramBot,
     chatId: Long,
-    text: String
+    text: String,
+    countryCode: String? = null
 ) {
     println("[PROMO] Processing promo code for chat $chatId")
 
@@ -149,7 +154,8 @@ private suspend fun BotUpdateHandling.handlePromoCode(
         GlobalRepo.getAnalytics()?.trackPromoCode(
             userId = chatId,
             code = promoCode,
-            success = false
+            success = false,
+            countryCode = countryCode
         )
         bot.sendMessage(chatId, "❌ Invalid or inactive promo code.")
         return
@@ -159,7 +165,8 @@ private suspend fun BotUpdateHandling.handlePromoCode(
         GlobalRepo.getAnalytics()?.trackPromoCode(
             userId = chatId,
             code = promoCode,
-            success = false
+            success = false,
+            countryCode = countryCode
         )
         bot.sendMessage(chatId, "❌ You have already used this promo code.")
         return
@@ -176,14 +183,16 @@ private suspend fun BotUpdateHandling.handlePromoCode(
         userId = chatId,
         code = promoCode,
         success = true,
-        durationDays = validatedPromo.durationDays
+        durationDays = validatedPromo.durationDays,
+        countryCode = countryCode
     )
-    
+
     GlobalRepo.getAnalytics()?.trackSubscriptionActivated(
         userId = chatId,
         subscriptionType = SubscriptionType.PROMO.name,
         durationDays = validatedPromo.durationDays,
-        method = "promo_code"
+        method = "promo_code",
+        countryCode = countryCode
     )
 
     bot.sendMessage(
@@ -211,12 +220,13 @@ private suspend fun BotUpdateHandling.handlePromoCode(
 private suspend fun BotUpdateHandling.handleVoiceMessage(
     bot: TelegramBot,
     chatId: Long,
-    voice: io.github.dehuckakpyt.telegrambot.model.telegram.Voice
+    voice: io.github.dehuckakpyt.telegrambot.model.telegram.Voice,
+    countryCode: String? = null
 ) {
     println("[VOICE] Processing voice message for chat $chatId")
 
     // Track voice message received
-    GlobalRepo.getAnalytics()?.trackMessage(chatId, chatId, "private", "voice")
+    GlobalRepo.getAnalytics()?.trackMessage(chatId, chatId, "private", "voice", countryCode)
 
     // Check subscription
     if (!GlobalRepo.isSubscriptionActive(chatId)) {
@@ -241,7 +251,7 @@ private suspend fun BotUpdateHandling.handleVoiceMessage(
 
     // Process voice in background
     withContext(Dispatchers.IO) {
-        processVoiceWithGemini(bot, chatId, voice)
+        processVoiceWithGemini(bot, chatId, voice, countryCode = countryCode)
     }
 }
 
@@ -252,7 +262,8 @@ private suspend fun processVoiceWithGemini(
     bot: TelegramBot,
     chatId: Long,
     voice: io.github.dehuckakpyt.telegrambot.model.telegram.Voice?,  // Nullable for retry
-    base64: String? = null  // Optional: reuse existing base64 on retry
+    base64: String? = null,  // Optional: reuse existing base64 on retry
+    countryCode: String? = null  // Optional: user's country code
 ) {
     val audioBase64 = base64 ?: run {
         try {
@@ -359,7 +370,8 @@ private suspend fun processVoiceWithGemini(
             errorMessage = e.message ?: "Unknown error",
             userId = chatId,
             chatId = chatId,
-            context = mapOf("feature" to "voice_processing")
+            context = mapOf("feature" to "voice_processing"),
+            countryCode = countryCode
         )
 
         // Store the base64 for retry
@@ -488,9 +500,9 @@ private suspend fun BotUpdateHandling.handleResendRequest(
     chatId: Long
 ) {
     println("[RESEND] Retrying failed voice message for chat $chatId")
-    
+
     val storedBase64 = GlobalRepo.failedVoiceMessages[chatId]
-    
+
     if (storedBase64 != null) {
         println("[RESEND] Found stored voice message, retrying...")
         // Reuse the stored base64 audio

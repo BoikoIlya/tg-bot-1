@@ -19,7 +19,7 @@ class CustomExceptionHandler(bot: TelegramBot, template: MessageTemplate, templa
                 errorMessage = ex.message ?: "Unknown error",
                 userId = chat.id,
                 chatId = chat.id,
-                context = mapOf("chatType" to (chat.type ?: "unknown"))
+                context = mapOf("chatType" to chat.type)
             )
         }
 

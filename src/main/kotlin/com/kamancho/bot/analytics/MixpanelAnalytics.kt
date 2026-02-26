@@ -64,7 +64,8 @@ class MixpanelAnalytics(
         userId: Long,
         chatId: Long,
         chatType: String? = null,
-        username: String? = null
+        username: String? = null,
+        countryCode: String? = null
     ) {
         track(
             eventName = "command_used",
@@ -74,7 +75,8 @@ class MixpanelAnalytics(
                 "command" to command,
                 "chat_id" to chatId,
                 "chat_type" to (chatType ?: "unknown"),
-                "username" to (username ?: "anonymous")
+                "username" to (username ?: "anonymous"),
+                "country_code" to (countryCode ?: "unknown")
             )
         )
     }
@@ -86,7 +88,8 @@ class MixpanelAnalytics(
         callbackData: String,
         userId: Long,
         chatId: Long,
-        chatType: String? = null
+        chatType: String? = null,
+        countryCode: String? = null
     ) {
         track(
             eventName = "callback_pressed",
@@ -95,7 +98,8 @@ class MixpanelAnalytics(
             properties = mapOf(
                 "callback_data" to callbackData,
                 "chat_id" to chatId,
-                "chat_type" to (chatType ?: "private")
+                "chat_type" to (chatType ?: "private"),
+                "country_code" to (countryCode ?: "unknown")
             )
         )
     }
@@ -107,7 +111,8 @@ class MixpanelAnalytics(
         userId: Long,
         chatId: Long,
         chatType: String = "private",
-        messageType: String = "text"
+        messageType: String = "text",
+        countryCode: String? = null
     ) {
         track(
             eventName = "message_received",
@@ -116,7 +121,8 @@ class MixpanelAnalytics(
             properties = mapOf(
                 "chat_id" to chatId,
                 "chat_type" to chatType,
-                "message_type" to messageType
+                "message_type" to messageType,
+                "country_code" to (countryCode ?: "unknown")
             )
         )
     }
@@ -130,7 +136,8 @@ class MixpanelAnalytics(
         amount: Long,
         currency: String = "USD",
         subscriptionType: String,
-        chargeId: String? = null
+        chargeId: String? = null,
+        countryCode: String? = null
     ) {
         // Track payment event
         track(
@@ -142,10 +149,11 @@ class MixpanelAnalytics(
                 "currency" to currency,
                 "subscription_type" to subscriptionType,
                 "charge_id" to (chargeId ?: "unknown"),
-                "revenue" to (amount / 100.0) // Convert cents to dollars
+                "revenue" to (amount / 100.0), // Convert cents to dollars
+                "country_code" to (countryCode ?: "unknown")
             )
         )
-        
+
         // Track revenue event (Mixpanel special event)
         scope.launch {
             try {
@@ -153,7 +161,8 @@ class MixpanelAnalytics(
                 revenueProps.put("\$user_id", userId.toString())
                 revenueProps.put("\$amount", amount / 100.0)
                 revenueProps.put("subscription_type", subscriptionType)
-                
+                revenueProps.put("country_code", countryCode ?: "unknown")
+
                 val revenueEvent = messageBuilder.event(userId.toString(), "\$revenue", revenueProps)
                 val delivery = ClientDelivery()
                 delivery.addMessage(revenueEvent)
@@ -172,10 +181,11 @@ class MixpanelAnalytics(
         errorMessage: String,
         userId: Long? = null,
         chatId: Long? = null,
-        context: Map<String, Any> = emptyMap()
+        context: Map<String, Any> = emptyMap(),
+        countryCode: String? = null
     ) {
         val distinctId = userId?.toString() ?: chatId?.toString() ?: "unknown"
-        
+
         track(
             eventName = "error_occurred",
             distinctId = distinctId,
@@ -184,7 +194,8 @@ class MixpanelAnalytics(
                 "error_type" to errorType,
                 "error_message" to errorMessage,
                 "chat_id" to (chatId ?: "unknown"),
-                "timestamp" to System.currentTimeMillis()
+                "timestamp" to System.currentTimeMillis(),
+                "country_code" to (countryCode ?: "unknown")
             ) + context
         )
     }
@@ -196,7 +207,8 @@ class MixpanelAnalytics(
         userId: Long,
         subscriptionType: String,
         durationDays: Int,
-        method: String // "payment", "promo_code"
+        method: String, // "payment", "promo_code"
+        countryCode: String? = null
     ) {
         track(
             eventName = "subscription_activated",
@@ -205,7 +217,8 @@ class MixpanelAnalytics(
             properties = mapOf(
                 "subscription_type" to subscriptionType,
                 "duration_days" to durationDays,
-                "activation_method" to method
+                "activation_method" to method,
+                "country_code" to (countryCode ?: "unknown")
             )
         )
     }
@@ -217,7 +230,8 @@ class MixpanelAnalytics(
         userId: Long,
         code: String,
         success: Boolean,
-        durationDays: Int? = null
+        durationDays: Int? = null,
+        countryCode: String? = null
     ) {
         track(
             eventName = if (success) "promo_code_success" else "promo_code_failed",
@@ -226,7 +240,8 @@ class MixpanelAnalytics(
             properties = mapOf(
                 "promo_code" to code,
                 "duration_days" to (durationDays ?: 0),
-                "success" to success
+                "success" to success,
+                "country_code" to (countryCode ?: "unknown")
             )
         )
     }

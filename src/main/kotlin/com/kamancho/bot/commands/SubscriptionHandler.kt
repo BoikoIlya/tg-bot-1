@@ -10,9 +10,10 @@ import io.github.dehuckakpyt.telegrambot.model.telegram.LabeledPrice
 fun BotHandling.subscriptionCommand() {
     callback("sub_monthly") {
         val chatId = chat.id
-        
+        val countryCode = from.languageCode
+
         // Track callback
-        GlobalRepo.getAnalytics()?.trackCallback("sub_monthly", chatId, chatId, chat.type)
+        GlobalRepo.getAnalytics()?.trackCallback("sub_monthly", chatId, chatId, chat.type, countryCode)
         
         bot.sendInvoice(
             chatId = chatId,
@@ -26,14 +27,15 @@ fun BotHandling.subscriptionCommand() {
 
     callback("sub_yearly") {
         val chatId = chat.id
-        
+        val countryCode = from.languageCode
+
         // Track callback
-        GlobalRepo.getAnalytics()?.trackCallback("sub_yearly", chatId, chatId, chat.type)
+        GlobalRepo.getAnalytics()?.trackCallback("sub_yearly", chatId, chatId, chat.type, countryCode)
         
         bot.sendInvoice(
             chatId = chatId,
             title = "🌟 Premium Yearly Subscription",
-            description = "(Save 58%) Get access to premium features for 1 year",
+            description = "(Save 60%) Get access to premium features for 1 year",
             payload = "sub_yearly_${chat.username}",
             currency = "XTR",
             prices = listOf(LabeledPrice("Yearly", 2499)),
@@ -41,16 +43,20 @@ fun BotHandling.subscriptionCommand() {
     }
 
     callback("promo") {
+        val countryCode = from.languageCode
+        
         // Track callback
-        GlobalRepo.getAnalytics()?.trackCallback("promo", chatId, chatId, chat.type)
+        GlobalRepo.getAnalytics()?.trackCallback("promo", chatId, chatId, chat.type, countryCode)
         
         GlobalRepo.promoWaiting.add(chatId)
         sendMessage("💎 Enter your promo code in the message:")
     }
 
     callback("back_to_menu") {
+        val countryCode = from.languageCode
+        
         // Track callback
-        GlobalRepo.getAnalytics()?.trackCallback("back_to_menu", chatId, chatId, chat.type)
+        GlobalRepo.getAnalytics()?.trackCallback("back_to_menu", chatId, chatId, chat.type, countryCode)
         showSubscriptionMenu()
     }
 }

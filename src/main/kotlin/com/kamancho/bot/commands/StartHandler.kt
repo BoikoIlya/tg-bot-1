@@ -11,9 +11,10 @@ fun BotHandling.startCommand() {
     command("/start") {
         val userId = chat.id
         val user = GlobalRepo.getOrCreateUser(userId, chat.username, chat.firstName, chat.lastName)
+        val countryCode = from.languageCode
 
         // Track command usage
-        GlobalRepo.getAnalytics()?.trackCommand("/start", userId, chat.id, chat.type, chat.username)
+        GlobalRepo.getAnalytics()?.trackCommand("/start", userId, chat.id, chat.type, chat.username, countryCode)
 
         if (GlobalRepo.isSubscriptionActive(userId)) {
             sendMessage(
