@@ -9,6 +9,8 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.*
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
@@ -56,24 +58,26 @@ object NetworkClient{
         base64Audio: String,
         onAnalysisResult: suspend (String) -> Unit,
         onTtsResult: suspend (String, String) -> Unit
-    ): ResultData {
+    ) = coroutineScope {
         logger.info("Starting voice analysis for audio size: ${base64Audio.length}")
-        
+
         // Step 1: Text analysis
         val analysisResult = analyzeVoice(base64Audio)
         logger.info("Analysis complete: ${analysisResult.textAnalysis}")
-        
+
         // Notify user with text analysis
-        onAnalysisResult(analysisResult.textAnalysis)
-        
-        // Step 2: Text-to-speech
-        val audioBase64 = generateSpeech(analysisResult.dialogueToSpeak)
-        logger.info("TTS complete: audio size ${audioBase64.length}")
-        
-        // Notify user with voice response
-        onTtsResult(audioBase64, analysisResult.dialogueToSpeak)
-        
-        return analysisResult.copy(audioBase64 = audioBase64)
+        launch {
+            onAnalysisResult(analysisResult.textAnalysis)
+        }
+
+        launch {
+            // Step 2: Text-to-speech
+            val audioBase64 = generateSpeech(analysisResult.dialogueToSpeak)
+            logger.info("TTS complete: audio size ${audioBase64.length}")
+
+            // Notify user with voice response
+            onTtsResult(audioBase64, analysisResult.dialogueToSpeak)
+        }
     }
     
     /**
@@ -126,12 +130,20 @@ object NetworkClient{
     // ==================== REQUEST BUILDERS ====================
     
     private fun buildAnalysisRequest(base64Audio: String): String {
+
+        val prompt = System.getenv("MAIN_PROMPT") ?: ""
+        // Экранируем только то, что действительно может сломать JSON
+        val escapedPrompt = prompt
+            .replace("\\", "\\\\")  // экранируем обратные слеши
+            .replace("\"", "\\\"")  // экранируем кавычки
+
+
         return """
             {
               "system_instruction": {
                 "parts": [
                   {
-                    "text": "${System.getenv("MAIN_PROMPT")}"
+                    "text": "$escapedPrompt"
                   }
                 ]
               },
@@ -180,48 +192,6 @@ object NetworkClient{
         """.trimIndent()
     }
 
-//    {
-//        "system_instruction": {
-//        "parts": [
-//        {
-//            "text": "
-//            You are an expert Spanish language tutor.
-//            1) Listen to the user.
-//            2) Provide grammatical corrections and feedback in English.
-//            3) If everything is ok, you can optionally suggest alternatives or slang, but you MUST NOT create nested JSON.
-//            4) Write a natural conversational response in Spanish under 15-30 words.
-//            STRICT CONSTRAINT:
-//            - Return STRICTLY a JSON object with EXACTLY TWO keys:
-//            1) \"text_analysis\" → must be a plain string with your feedback in English. NO objects, NO arrays.
-//            2) \"dialogue_to_speak\" → must be a plain string.
-//            - Do NOT include any other keys.
-//            - Return ONLY raw JSON. No markdown, no explanations, no extra fields.
-//            "
-//        }
-//        ]
-//    },
-//        "contents": [
-//        {
-//            "role": "user",
-//            "parts": [
-//            {
-//                "inline_data": {
-//                "mime_type": "audio/ogg",
-//                "data": "$base64Audio"
-//            }
-//            },
-//            {
-//                "text": "Analyze my Spanish and reply to keep the conversation going, if there is no specific topic suggest random. At the end always should be a question"
-//            }
-//            ]
-//        }
-//        ],
-//        "generationConfig": {
-//        "response_mime_type": "application/json",
-//        "temperature": 0.5
-//    }
-//    }
-    
     // ==================== RESPONSE PARSERS ====================
     
     private fun parseAnalysisResponse(raw: String): ResultData {
