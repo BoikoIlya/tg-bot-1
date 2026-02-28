@@ -10,11 +10,13 @@ fun BotHandling.startCommand() {
     // Handle /start command
     command("/start") {
         val userId = chat.id
-        val user = GlobalRepo.getOrCreateUser(userId, chat.username, chat.firstName, chat.lastName)
+        // Extract user_source from command text (e.g., "/start test_tt" -> "test_tt")
+        val userSource = message.text?.substringAfter("/start")?.trim()?.takeIf { it.isNotEmpty() }
+        val user = GlobalRepo.getOrCreateUser(userId, chat.username, chat.firstName, chat.lastName, userSource)
         val countryCode = from.languageCode
 
         // Track command usage
-        GlobalRepo.getAnalytics()?.trackCommand("/start", userId, chat.id, chat.type, chat.username, countryCode)
+        GlobalRepo.getAnalytics()?.trackCommand("/start", userId, chat.id, chat.type, chat.username, countryCode, userSource)
 
         if (GlobalRepo.isSubscriptionActive(userId)) {
             sendMessage(

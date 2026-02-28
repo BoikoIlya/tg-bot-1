@@ -85,7 +85,7 @@ private suspend fun BotUpdateHandling.handlePayment(
             userId = chatId,
             chatId = chatId,
             amount = amount.toLong(),
-            currency = "USD",
+            currency = "XTR",
             subscriptionType = subscriptionType.first.name,
             chargeId = chargeId,
             countryCode = countryCode

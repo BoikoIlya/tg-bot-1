@@ -11,6 +11,7 @@ data class AppUser(
     val username: String?,
     val firstName: String?,
     val lastName: String?,
+    val userSource: String? = null,
     val createdAt: LocalDateTime = LocalDateTime.now()
 )
 

@@ -65,7 +65,8 @@ class MixpanelAnalytics(
         chatId: Long,
         chatType: String? = null,
         username: String? = null,
-        countryCode: String? = null
+        countryCode: String? = null,
+        userSource: String? = null
     ) {
         track(
             eventName = "command_used",
@@ -76,7 +77,8 @@ class MixpanelAnalytics(
                 "chat_id" to chatId,
                 "chat_type" to (chatType ?: "unknown"),
                 "username" to (username ?: "anonymous"),
-                "country_code" to (countryCode ?: "unknown")
+                "language_code" to (countryCode ?: "unknown"),
+                "user_source" to (userSource ?: "direct")
             )
         )
     }
@@ -99,7 +101,7 @@ class MixpanelAnalytics(
                 "callback_data" to callbackData,
                 "chat_id" to chatId,
                 "chat_type" to (chatType ?: "private"),
-                "country_code" to (countryCode ?: "unknown")
+                "language_code" to (countryCode ?: "unknown")
             )
         )
     }
@@ -122,7 +124,7 @@ class MixpanelAnalytics(
                 "chat_id" to chatId,
                 "chat_type" to chatType,
                 "message_type" to messageType,
-                "country_code" to (countryCode ?: "unknown")
+                "language_code" to (countryCode ?: "unknown")
             )
         )
     }
@@ -134,7 +136,7 @@ class MixpanelAnalytics(
         userId: Long,
         chatId: Long,
         amount: Long,
-        currency: String = "USD",
+        currency: String = "XTR",
         subscriptionType: String,
         chargeId: String? = null,
         countryCode: String? = null
@@ -150,7 +152,7 @@ class MixpanelAnalytics(
                 "subscription_type" to subscriptionType,
                 "charge_id" to (chargeId ?: "unknown"),
                 "revenue" to (amount / 100.0), // Convert cents to dollars
-                "country_code" to (countryCode ?: "unknown")
+                "language_code" to (countryCode ?: "unknown")
             )
         )
 
@@ -161,7 +163,7 @@ class MixpanelAnalytics(
                 revenueProps.put("\$user_id", userId.toString())
                 revenueProps.put("\$amount", amount / 100.0)
                 revenueProps.put("subscription_type", subscriptionType)
-                revenueProps.put("country_code", countryCode ?: "unknown")
+                revenueProps.put("language_code", countryCode ?: "unknown")
 
                 val revenueEvent = messageBuilder.event(userId.toString(), "\$revenue", revenueProps)
                 val delivery = ClientDelivery()
@@ -195,7 +197,7 @@ class MixpanelAnalytics(
                 "error_message" to errorMessage,
                 "chat_id" to (chatId ?: "unknown"),
                 "timestamp" to System.currentTimeMillis(),
-                "country_code" to (countryCode ?: "unknown")
+                "language_code" to (countryCode ?: "unknown")
             ) + context
         )
     }
@@ -218,7 +220,7 @@ class MixpanelAnalytics(
                 "subscription_type" to subscriptionType,
                 "duration_days" to durationDays,
                 "activation_method" to method,
-                "country_code" to (countryCode ?: "unknown")
+                "language_code" to (countryCode ?: "unknown")
             )
         )
     }
@@ -241,7 +243,7 @@ class MixpanelAnalytics(
                 "promo_code" to code,
                 "duration_days" to (durationDays ?: 0),
                 "success" to success,
-                "country_code" to (countryCode ?: "unknown")
+                "language_code" to (countryCode ?: "unknown")
             )
         )
     }

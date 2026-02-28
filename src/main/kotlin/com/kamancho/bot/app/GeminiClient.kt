@@ -72,11 +72,13 @@ object NetworkClient{
 
         launch {
             // Step 2: Text-to-speech
-            val audioBase64 = generateSpeech(analysisResult.dialogueToSpeak)
-            logger.info("TTS complete: audio size ${audioBase64.length}")
+            runCatching {
+                val audioBase64 = generateSpeech(analysisResult.dialogueToSpeak)
+                logger.info("TTS complete: audio size ${audioBase64.length}")
 
-            // Notify user with voice response
-            onTtsResult(audioBase64, analysisResult.dialogueToSpeak)
+                // Notify user with voice response
+                onTtsResult(audioBase64, analysisResult.dialogueToSpeak)
+            }
         }
     }
     

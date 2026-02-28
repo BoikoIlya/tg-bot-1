@@ -43,9 +43,9 @@ object GlobalRepo {
     fun getUser(userId: Long): AppUser? {
         return getDatabaseManager().getUser(userId)
     }
-    
-    fun getOrCreateUser(userId: Long, username: String?, firstName: String?, lastName: String?): AppUser {
-        return getDatabaseManager().getOrCreateUser(userId, username, firstName, lastName)
+
+    fun getOrCreateUser(userId: Long, username: String?, firstName: String?, lastName: String?, userSource: String? = null): AppUser {
+        return getDatabaseManager().getOrCreateUser(userId, username, firstName, lastName, userSource)
     }
     
     // ==================== SUBSCRIPTION OPERATIONS ====================

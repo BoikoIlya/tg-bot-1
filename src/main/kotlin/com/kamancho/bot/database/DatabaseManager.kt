@@ -15,8 +15,9 @@ object Users : Table("users") {
     val username = varchar("username", 255).nullable()
     val firstName = varchar("first_name", 255).nullable()
     val lastName = varchar("last_name", 255).nullable()
+    val userSource = varchar("user_source", 255).nullable()
     val createdAt = long("created_at")
-    
+
     override val primaryKey = PrimaryKey(id)
 }
 
@@ -112,33 +113,36 @@ class DatabaseManager(
                     username = row[Users.username],
                     firstName = row[Users.firstName],
                     lastName = row[Users.lastName],
+                    userSource = row[Users.userSource],
                     createdAt = row[Users.createdAt].toLocalDateTime()
                 )
             }
         }
     }
-    
-    fun createUser(userId: Long, username: String?, firstName: String?, lastName: String?): AppUser {
+
+    fun createUser(userId: Long, username: String?, firstName: String?, lastName: String?, userSource: String? = null): AppUser {
         return transaction {
             Users.insert {
                 it[id] = userId
                 it[this.username] = username
                 it[this.firstName] = firstName
                 it[this.lastName] = lastName
+                it[Users.userSource] = userSource
                 it[createdAt] = LocalDateTime.now().toEpochMillis()
             }
-            
+
             AppUser(
                 id = userId,
                 username = username,
                 firstName = firstName,
-                lastName = lastName
+                lastName = lastName,
+                userSource = userSource
             )
         }
     }
-    
-    fun getOrCreateUser(userId: Long, username: String?, firstName: String?, lastName: String?): AppUser {
-        return getUser(userId) ?: createUser(userId, username, firstName, lastName)
+
+    fun getOrCreateUser(userId: Long, username: String?, firstName: String?, lastName: String?, userSource: String? = null): AppUser {
+        return getUser(userId) ?: createUser(userId, username, firstName, lastName, userSource)
     }
     
     // ==================== SUBSCRIPTION OPERATIONS ====================
