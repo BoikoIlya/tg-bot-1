@@ -4,7 +4,6 @@ import com.kamancho.bot.app.NetworkClient
 import com.kamancho.bot.commands.toDisplayName
 import com.kamancho.bot.model.SubscriptionType
 import com.kamancho.bot.repository.GlobalRepo
-import com.kamancho.bot.utils.convertPcmBase64ToOggByteArray
 import com.kamancho.bot.utils.escapeMarkdownV2
 import io.github.dehuckakpyt.telegrambot.TelegramBot
 import io.github.dehuckakpyt.telegrambot.factory.keyboard.inlineKeyboard
@@ -342,7 +341,7 @@ private suspend fun processVoiceWithGemini(
                     // Send voice response
                     bot.sendVoice(
                         chatId = chatId,
-                        voice = ByteArrayContent(convertPcmBase64ToOggByteArray(audio)),
+                        voice = ByteArrayContent(audio),
                     )
                     
                     // Send text transcription

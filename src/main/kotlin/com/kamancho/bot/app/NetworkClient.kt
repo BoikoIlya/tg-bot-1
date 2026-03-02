@@ -1,7 +1,6 @@
 package com.kamancho.bot.app
 
 import io.ktor.client.*
-import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.*
@@ -11,9 +10,9 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.serialization.*
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory
+import java.util.Base64
 
 /**
  * Client for Google Gemini API
@@ -57,7 +56,7 @@ object NetworkClient{
     suspend fun analyzeSpanishAndGenerateAudio(
         base64Audio: String,
         onAnalysisResult: suspend (String) -> Unit,
-        onTtsResult: suspend (String, String) -> Unit
+        onTtsResult: suspend (ByteArray, String) -> Unit
     ) = coroutineScope {
         logger.info("Starting voice analysis for audio size: ${base64Audio.length}")
 
@@ -77,7 +76,7 @@ object NetworkClient{
                 logger.info("TTS complete: audio size ${audioBase64.length}")
 
                 // Notify user with voice response
-                onTtsResult(audioBase64, analysisResult.dialogueToSpeak)
+                onTtsResult(Base64.getDecoder().decode(audioBase64), analysisResult.dialogueToSpeak)
             }
         }
     }
@@ -113,15 +112,16 @@ object NetworkClient{
         logger.debug("Generating speech for text: $text")
         
         val response = httpClient.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=$apiKey"
+            "https://api.inworld.ai/tts/v1/voice"
         ) {
+            header("Authorization","Basic ${System.getenv("INWORLD_API_KEY")}")
             contentType(ContentType.Application.Json)
             setBody(buildTtsRequest(text))
         }
         
         if (response.status != HttpStatusCode.OK) {
             val errorBody = response.bodyAsText()
-            logger.error("Gemini TTS failed: ${response.status} - $errorBody")
+            logger.error("INWORLD TTS failed: ${response.status} - $errorBody")
             throw ApiException("Gemini TTS failed: ${response.status}", errorBody)
         }
         
@@ -176,20 +176,13 @@ object NetworkClient{
     private fun buildTtsRequest(text: String): String {
         return """
         {
-          "contents": [{
-            "role": "user",
-            "parts": [{ "text": "$text" }]
-          }],
-          "generationConfig": {
-            "responseModalities": ["AUDIO"],
-            "speechConfig": {
-              "voiceConfig": {
-                "prebuiltVoiceConfig": {
-                  "voiceName": "Aoede"
-                }
-              }
-            }
-          }
+          "text": "$text",
+          "voiceId": "Miguel",
+          "modelId": "inworld-tts-1.5-mini",
+          "audioConfig": {
+             "audioEncoding": "OGG_OPUS"
+          },
+         "temperature": 1.1
         }
         """.trimIndent()
     }
@@ -222,15 +215,14 @@ object NetworkClient{
             throw ParsingException("Failed to parse analysis response: ${e.message}", e)
         }
     }
-    
+
     private fun parseTtsResponse(raw: String): String {
         return try {
             val root = json.parseToJsonElement(raw).jsonObject
-            root["candidates"]?.jsonArray?.get(0)
-                ?.jsonObject?.get("content")?.jsonObject?.get("parts")
-                ?.jsonArray?.get(0)?.jsonObject?.get("inlineData")
-                ?.jsonObject?.get("data")?.jsonPrimitive?.content
-                ?: throw ParsingException("No audio data in TTS response")
+
+            root["audioContent"]?.jsonPrimitive?.content
+                ?: throw ParsingException("No audioContent in TTS response")
+
         } catch (e: Exception) {
             logger.error("Failed to parse TTS response: $raw", e)
             throw ParsingException("Failed to parse TTS response: ${e.message}", e)

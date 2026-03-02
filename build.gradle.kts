@@ -38,11 +38,6 @@ dependencies {
 	compileOnly(libs.koin.annotations)
 	ksp(libs.koin.ksp.compiler)
 
-	implementation("org.bytedeco:ffmpeg:6.0-1.5.9")
-	implementation("org.bytedeco:ffmpeg-platform:6.0-1.5.9")
-////
-//	implementation("de.jarnbjo:j-ogg-all:1.0.0")
-
 	implementation("io.ktor:ktor-client-core:3.4.0")
 	implementation("io.ktor:ktor-client-cio:3.4.0")
 	implementation("io.ktor:ktor-client-content-negotiation:3.4.0")
@@ -59,7 +54,6 @@ dependencies {
 	implementation("org.jetbrains.exposed:exposed-core:1.0.0")
 	implementation("org.jetbrains.exposed:exposed-dao:1.0.0")
 	implementation("org.jetbrains.exposed:exposed-jdbc:1.0.0")
-//	implementation("org.xerial:sqlite-jdbc:3.45.1.0")
 	implementation("org.postgresql:postgresql:42.7.10")
 }
 
