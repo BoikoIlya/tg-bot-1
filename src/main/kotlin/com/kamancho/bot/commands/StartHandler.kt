@@ -46,7 +46,15 @@ fun BotHandling.startCommand() {
                 2. I'll analyze your speech
                 3. Get feedback and an audio response
 
-                🌟 **You need a subscription to access features:**
+                💰 **Subscription prices are in Telegram Stars**
+
+                💡 **Tip:** The cheapest way to buy Stars is through:
+                • Telegram Web version (web.telegram.org)
+                • Telegram Desktop (PC version)
+                
+                No commission fees = more Stars for your money! 🌟
+
+                🌟 **Choose a plan:**
                 """.trimIndent(),
                 parseMode = "Markdown",
                 replyMarkup = inlineKeyboard(

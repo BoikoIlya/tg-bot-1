@@ -93,6 +93,14 @@ fun BotHandling.showSubscriptionMenu() {
                 2. I'll analyze your speech with AI
                 3. Get detailed feedback and an audio response
 
+                💰 **Subscription prices are in Telegram Stars**
+
+                💡 **Tip:** The cheapest way to buy Stars is through:
+                • Telegram Web version (web.telegram.org)
+                • Telegram Desktop (PC version)
+                
+                No commission fees = more Stars for your money! 🌟
+
                 🌟 **Choose a plan:**
                 """.trimIndent(),
                 parseMode = "Markdown",
