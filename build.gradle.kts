@@ -55,6 +55,7 @@ dependencies {
 	implementation("org.jetbrains.exposed:exposed-dao:1.0.0")
 	implementation("org.jetbrains.exposed:exposed-jdbc:1.0.0")
 	implementation("org.postgresql:postgresql:42.7.10")
+	implementation("com.zaxxer:HikariCP:7.0.2")
 }
 
 kotlin {

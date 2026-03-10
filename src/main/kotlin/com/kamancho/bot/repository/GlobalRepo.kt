@@ -40,20 +40,20 @@ object GlobalRepo {
     }
     
     // ==================== USER OPERATIONS ====================
-    fun getUser(userId: Long): AppUser? {
+    suspend fun getUser(userId: Long): AppUser? {
         return getDatabaseManager().getUser(userId)
     }
 
-    fun getOrCreateUser(userId: Long, username: String?, firstName: String?, lastName: String?, userSource: String? = null): AppUser {
+    suspend fun getOrCreateUser(userId: Long, username: String?, firstName: String?, lastName: String?, userSource: String? = null): AppUser {
         return getDatabaseManager().getOrCreateUser(userId, username, firstName, lastName, userSource)
     }
     
     // ==================== SUBSCRIPTION OPERATIONS ====================
-    fun isSubscriptionActive(userId: Long): Boolean {
+    suspend fun isSubscriptionActive(userId: Long): Boolean {
         return getDatabaseManager().isSubscriptionActive(userId)
     }
     
-    fun activateSubscription(
+    suspend fun activateSubscription(
         userId: Long,
         type: SubscriptionType,
         durationDays: Int,
@@ -62,24 +62,24 @@ object GlobalRepo {
         getDatabaseManager().activateSubscription(userId, type, durationDays, paymentChargeId)
     }
     
-    fun getSubscriptionExpiryDate(userId: Long): java.time.LocalDateTime? {
+    suspend fun getSubscriptionExpiryDate(userId: Long): java.time.LocalDateTime? {
         return getDatabaseManager().getSubscriptionExpiryDate(userId)
     }
     
-    fun getSubscriptionType(userId: Long): SubscriptionType? {
+    suspend fun getSubscriptionType(userId: Long): SubscriptionType? {
         return getDatabaseManager().getSubscriptionType(userId)
     }
     
     // ==================== PROMO CODE OPERATIONS ====================
-    fun validatePromoCode(code: String): PromoCode? {
+    suspend fun validatePromoCode(code: String): PromoCode? {
         return getDatabaseManager().validatePromoCode(code)
     }
     
-    fun hasUserUsedPromoCode(userId: Long, code: String): Boolean {
+    suspend fun hasUserUsedPromoCode(userId: Long, code: String): Boolean {
         return getDatabaseManager().hasUserUsedPromoCode(userId, code)
     }
     
-    fun activatePromoCodeSubscription(userId: Long, promoCode: String, durationDays: Int) {
+    suspend fun activatePromoCodeSubscription(userId: Long, promoCode: String, durationDays: Int) {
         getDatabaseManager().activatePromoCodeSubscription(userId, promoCode, durationDays)
     }
 }

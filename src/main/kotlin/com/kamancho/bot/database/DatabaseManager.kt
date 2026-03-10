@@ -3,9 +3,19 @@ package com.kamancho.bot.database
 import com.kamancho.bot.model.AppUser
 import com.kamancho.bot.model.PromoCode
 import com.kamancho.bot.model.SubscriptionType
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.*
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
+import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.less
+import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.SchemaUtils
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -70,32 +80,47 @@ class DatabaseManager(
         val databaseUrl = dbUrl ?: System.getenv("DATABASE_URL")
         ?: throw IllegalStateException("DATABASE_URL environment variable not set")
 
-        val isLocalLaunch  = System.getenv("DB_USER").equals("admin")
+        val isLocalLaunch = System.getenv("DB_USER").equals("admin")
 
-        // Сначала парсим URL для получения credentials
-        val uri = java.net.URI(databaseUrl.replace("postgres://", "http://"))
-        val userInfo = uri.userInfo?.split(":")
+        val (username, password, jdbcUrl) = if (isLocalLaunch) {
+            Triple(
+                System.getenv("DB_USER"),
+                System.getenv("DB_PASSWORD"),
+                databaseUrl
+            )
+        } else {
+            val uri = java.net.URI(databaseUrl.replace("postgres://", "http://"))
+            val userInfo = uri.userInfo?.split(":")
+                ?: throw IllegalStateException("Invalid DATABASE_URL format")
 
-        if (!isLocalLaunch && (userInfo == null || userInfo.size != 2)) {
-            throw IllegalStateException("Invalid DATABASE_URL format: missing credentials")
+            Triple(
+                userInfo[0],
+                userInfo[1],
+                "jdbc:postgresql://${uri.host}:${uri.port}${uri.path}?sslmode=require"
+            )
         }
 
-        val username = userInfo?.getOrNull(0) ?: System.getenv("DB_USER")
-        val password = userInfo?.getOrNull(1) ?: System.getenv("DB_PASSWORD")
+        val config = HikariConfig().apply {
+            setJdbcUrl(jdbcUrl)
+            this.username = username
+            this.password = password
+            driverClassName = "org.postgresql.Driver"
+            maximumPoolSize = 10
+            minimumIdle = 2
+            idleTimeout = 300_000 // 5 minutes //
+            maxLifetime = 600_000 // 10 minutes - critical for Heroku (they kill idle connections)
+            keepaliveTime = 30_000 // 30 seconds
+            isAutoCommit = false
+            transactionIsolation = "TRANSACTION_REPEATABLE_READ"
+        }
+        config.validate()
 
-        // Формируем JDBC URL без credentials в хосте
-        val jdbcUrl = if(System.getenv("DB_USER").equals("admin")) databaseUrl
-        else "jdbc:postgresql://${uri.host}:${uri.port}${uri.path}"
+        val dataSource = HikariDataSource(config)
 
-        Database.connect(
-            url = jdbcUrl,
-            driver = "org.postgresql.Driver",
-            user = username,
-            password = password
-        )
-        
+        Database.connect(dataSource)
+
         transaction {
-            SchemaUtils.createMissingTablesAndColumns(
+            SchemaUtils.create(
                 Users,
                 Subscriptions,
                 PromoCodes,
@@ -105,8 +130,8 @@ class DatabaseManager(
     }
     
     // ==================== USER OPERATIONS ====================
-    fun getUser(userId: Long): AppUser? {
-        return transaction {
+    suspend fun getUser(userId: Long): AppUser? {
+        return suspendTransaction {
             Users.selectAll().where { Users.id eq userId }.firstOrNull()?.let { row ->
                 AppUser(
                     id = row[Users.id],
@@ -120,8 +145,8 @@ class DatabaseManager(
         }
     }
 
-    fun createUser(userId: Long, username: String?, firstName: String?, lastName: String?, userSource: String? = null): AppUser {
-        return transaction {
+    suspend fun createUser(userId: Long, username: String?, firstName: String?, lastName: String?, userSource: String? = null): AppUser {
+        return suspendTransaction {
             Users.insert {
                 it[id] = userId
                 it[this.username] = username
@@ -141,13 +166,13 @@ class DatabaseManager(
         }
     }
 
-    fun getOrCreateUser(userId: Long, username: String?, firstName: String?, lastName: String?, userSource: String? = null): AppUser {
+    suspend fun getOrCreateUser(userId: Long, username: String?, firstName: String?, lastName: String?, userSource: String? = null): AppUser {
         return getUser(userId) ?: createUser(userId, username, firstName, lastName, userSource)
     }
     
     // ==================== SUBSCRIPTION OPERATIONS ====================
-    fun getActiveSubscription(userId: Long): SubscriptionInfo? {
-        return transaction {
+    suspend fun getActiveSubscription(userId: Long): SubscriptionInfo? {
+        return suspendTransaction {
             Subscriptions.selectAll().where {
                 (Subscriptions.userId eq userId) and
                 (Subscriptions.isActive eq true)
@@ -162,12 +187,12 @@ class DatabaseManager(
         }
     }
 
-    fun isSubscriptionActive(userId: Long): Boolean {
-        return transaction {
+    suspend fun isSubscriptionActive(userId: Long): Boolean {
+        return suspendTransaction {
             val sub = Subscriptions.selectAll().where {
                 (Subscriptions.userId eq userId) and
                 (Subscriptions.isActive eq true)
-            }.firstOrNull() ?: return@transaction false
+            }.firstOrNull() ?: return@suspendTransaction false
 
             val expiryDate = sub[Subscriptions.expiryDate].toLocalDateTime()
             val now = LocalDateTime.now()
@@ -177,20 +202,20 @@ class DatabaseManager(
                 Subscriptions.update({ Subscriptions.userId eq userId }) {
                     it[isActive] = false
                 }
-                return@transaction false
+                return@suspendTransaction false
             }
 
             true
         }
     }
     
-    fun activateSubscription(
+    suspend fun activateSubscription(
         userId: Long,
         type: SubscriptionType,
         durationDays: Int,
         paymentChargeId: String? = null
     ) {
-        transaction {
+        suspendTransaction {
             val now = LocalDateTime.now()
             val expiryDate = now.toLocalDate().plusDays(durationDays.toLong()).atStartOfDay()
             
@@ -211,18 +236,18 @@ class DatabaseManager(
         }
     }
     
-    fun getSubscriptionExpiryDate(userId: Long): LocalDateTime? {
+    suspend fun getSubscriptionExpiryDate(userId: Long): LocalDateTime? {
         return getActiveSubscription(userId)?.expiryDate
     }
     
-    fun getSubscriptionType(userId: Long): SubscriptionType? {
+    suspend fun getSubscriptionType(userId: Long): SubscriptionType? {
         return getActiveSubscription(userId)?.type
     }
     
     // ==================== PROMO CODE OPERATIONS ====================
-    fun validatePromoCode(code: String): PromoCode? {
+    suspend fun validatePromoCode(code: String): PromoCode? {
         println("[DB] Validating promo code: $code")
-        return transaction {
+        return suspendTransaction {
             val result = PromoCodes.selectAll().where {
                 (PromoCodes.code eq code) and
                 (PromoCodes.isActive eq true) and
@@ -241,9 +266,9 @@ class DatabaseManager(
         }
     }
     
-    fun hasUserUsedPromoCode(userId: Long, code: String): Boolean {
+    suspend fun hasUserUsedPromoCode(userId: Long, code: String): Boolean {
         println("[DB] Checking if user $userId used promo code: $code")
-        return transaction {
+        return suspendTransaction {
             val result = UsedPromoCodes.selectAll().where {
                 (UsedPromoCodes.userId eq userId) and
                 (UsedPromoCodes.promoCode eq code)
@@ -253,8 +278,8 @@ class DatabaseManager(
         }
     }
     
-    fun activatePromoCodeSubscription(userId: Long, promoCode: String, durationDays: Int) {
-        transaction {
+    suspend fun activatePromoCodeSubscription(userId: Long, promoCode: String, durationDays: Int) {
+        suspendTransaction {
             val now = LocalDateTime.now()
             val expiryDate = now.toLocalDate().plusDays(durationDays.toLong()).atStartOfDay()
             
