@@ -3,6 +3,7 @@ package com.kamancho.bot.database
 import com.kamancho.bot.model.AppUser
 import com.kamancho.bot.model.PromoCode
 import com.kamancho.bot.model.SubscriptionType
+import com.kamancho.bot.utils.withRetry
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import org.jetbrains.exposed.v1.core.Table
@@ -42,7 +43,7 @@ object Subscriptions : Table("subscriptions") {
     val expiryDate = long("expiry_date")
     val paymentChargeId = varchar("payment_charge_id", 255).nullable()
     val isActive = bool("is_active").default(true)
-    
+
     override val primaryKey = PrimaryKey(id)
 }
 
@@ -53,7 +54,7 @@ object PromoCodes : Table("promo_codes") {
     val maxUses = integer("max_uses")
     val currentUses = integer("current_uses").default(0)
     val isActive = bool("is_active").default(true)
-    
+
     override val primaryKey = PrimaryKey(code)
 }
 
@@ -67,8 +68,11 @@ object UsedPromoCodes : Table("used_promo_codes") {
 }
 
 // ==================== HELPER FUNCTIONS ====================
-fun LocalDateTime.toEpochMillis(): Long = this.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-fun Long.toLocalDateTime(): LocalDateTime = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(this), ZoneId.systemDefault())
+fun LocalDateTime.toEpochMillis(): Long =
+    this.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+fun Long.toLocalDateTime(): LocalDateTime =
+    LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(this), ZoneId.systemDefault())
 
 // ==================== DATABASE MANAGER ====================
 class DatabaseManager(
@@ -106,11 +110,11 @@ class DatabaseManager(
             this.username = username
             this.password = password
             driverClassName = "org.postgresql.Driver"
-            maximumPoolSize = 10
-            minimumIdle = 2
+            maximumPoolSize = 5
             maxLifetime = TimeUnit.MINUTES.toMillis(29)
             isAutoCommit = false
             transactionIsolation = "TRANSACTION_REPEATABLE_READ"
+            addDataSourceProperty("prepareThreshold", "0")
         }
         config.validate()
 
@@ -127,190 +131,226 @@ class DatabaseManager(
             )
         }
     }
-    
+
     // ==================== USER OPERATIONS ====================
     suspend fun getUser(userId: Long): AppUser? {
-        return suspendTransaction {
-            Users.selectAll().where { Users.id eq userId }.firstOrNull()?.let { row ->
+        return withRetry {
+            suspendTransaction {
+                Users.selectAll().where { Users.id eq userId }.firstOrNull()?.let { row ->
+                    AppUser(
+                        id = row[Users.id],
+                        username = row[Users.username],
+                        firstName = row[Users.firstName],
+                        lastName = row[Users.lastName],
+                        userSource = row[Users.userSource],
+                        createdAt = row[Users.createdAt].toLocalDateTime()
+                    )
+                }
+            }
+        }
+    }
+
+    suspend fun createUser(
+        userId: Long,
+        username: String?,
+        firstName: String?,
+        lastName: String?,
+        userSource: String? = null
+    ): AppUser {
+        return withRetry {
+            suspendTransaction {
+                Users.insert {
+                    it[id] = userId
+                    it[this.username] = username
+                    it[this.firstName] = firstName
+                    it[this.lastName] = lastName
+                    it[Users.userSource] = userSource
+                    it[createdAt] = LocalDateTime.now().toEpochMillis()
+                }
+
                 AppUser(
-                    id = row[Users.id],
-                    username = row[Users.username],
-                    firstName = row[Users.firstName],
-                    lastName = row[Users.lastName],
-                    userSource = row[Users.userSource],
-                    createdAt = row[Users.createdAt].toLocalDateTime()
+                    id = userId,
+                    username = username,
+                    firstName = firstName,
+                    lastName = lastName,
+                    userSource = userSource
                 )
             }
         }
     }
 
-    suspend fun createUser(userId: Long, username: String?, firstName: String?, lastName: String?, userSource: String? = null): AppUser {
-        return suspendTransaction {
-            Users.insert {
-                it[id] = userId
-                it[this.username] = username
-                it[this.firstName] = firstName
-                it[this.lastName] = lastName
-                it[Users.userSource] = userSource
-                it[createdAt] = LocalDateTime.now().toEpochMillis()
-            }
-
-            AppUser(
-                id = userId,
-                username = username,
-                firstName = firstName,
-                lastName = lastName,
-                userSource = userSource
+    suspend fun getOrCreateUser(
+        userId: Long,
+        username: String?,
+        firstName: String?,
+        lastName: String?,
+        userSource: String? = null
+    ): AppUser {
+        return withRetry {
+            getUser(userId) ?: createUser(
+                userId,
+                username,
+                firstName,
+                lastName,
+                userSource
             )
         }
     }
 
-    suspend fun getOrCreateUser(userId: Long, username: String?, firstName: String?, lastName: String?, userSource: String? = null): AppUser {
-        return getUser(userId) ?: createUser(userId, username, firstName, lastName, userSource)
-    }
-    
     // ==================== SUBSCRIPTION OPERATIONS ====================
     suspend fun getActiveSubscription(userId: Long): SubscriptionInfo? {
-        return suspendTransaction {
-            Subscriptions.selectAll().where {
-                (Subscriptions.userId eq userId) and
-                (Subscriptions.isActive eq true)
-            }.firstOrNull()?.let { row ->
-                SubscriptionInfo(
-                    type = SubscriptionType.valueOf(row[Subscriptions.type]),
-                    startDate = row[Subscriptions.startDate].toLocalDateTime(),
-                    expiryDate = row[Subscriptions.expiryDate].toLocalDateTime(),
-                    paymentChargeId = row[Subscriptions.paymentChargeId]
-                )
+        return withRetry {
+            suspendTransaction {
+                Subscriptions.selectAll().where {
+                    (Subscriptions.userId eq userId) and
+                            (Subscriptions.isActive eq true)
+                }.firstOrNull()?.let { row ->
+                    SubscriptionInfo(
+                        type = SubscriptionType.valueOf(row[Subscriptions.type]),
+                        startDate = row[Subscriptions.startDate].toLocalDateTime(),
+                        expiryDate = row[Subscriptions.expiryDate].toLocalDateTime(),
+                        paymentChargeId = row[Subscriptions.paymentChargeId]
+                    )
+                }
             }
         }
     }
 
     suspend fun isSubscriptionActive(userId: Long): Boolean {
-        return suspendTransaction {
-            val sub = Subscriptions.selectAll().where {
-                (Subscriptions.userId eq userId) and
-                (Subscriptions.isActive eq true)
-            }.firstOrNull() ?: return@suspendTransaction false
+        return withRetry {
+            suspendTransaction {
+                val sub = Subscriptions.selectAll().where {
+                    (Subscriptions.userId eq userId) and
+                            (Subscriptions.isActive eq true)
+                }.firstOrNull() ?: return@suspendTransaction false
 
-            val expiryDate = sub[Subscriptions.expiryDate].toLocalDateTime()
-            val now = LocalDateTime.now()
+                val expiryDate = sub[Subscriptions.expiryDate].toLocalDateTime()
+                val now = LocalDateTime.now()
 
-            if (now.isAfter(expiryDate)) {
-                // Mark as expired
-                Subscriptions.update({ Subscriptions.userId eq userId }) {
-                    it[isActive] = false
+                if (now.isAfter(expiryDate)) {
+                    // Mark as expired
+                    Subscriptions.update({ Subscriptions.userId eq userId }) {
+                        it[isActive] = false
+                    }
+                    return@suspendTransaction false
                 }
-                return@suspendTransaction false
-            }
 
-            true
+                true
+            }
         }
     }
-    
+
     suspend fun activateSubscription(
         userId: Long,
         type: SubscriptionType,
         durationDays: Int,
         paymentChargeId: String? = null
     ) {
-        suspendTransaction {
-            val now = LocalDateTime.now()
-            val expiryDate = now.toLocalDate().plusDays(durationDays.toLong()).atStartOfDay()
-            
-            // Deactivate old subscriptions
-            Subscriptions.update({ Subscriptions.userId eq userId }) {
-                it[isActive] = false
-            }
-            
-            // Create new active subscription
-            Subscriptions.insert {
-                it[Subscriptions.userId] = userId
-                it[Subscriptions.type] = type.name
-                it[Subscriptions.startDate] = now.toEpochMillis()
-                it[Subscriptions.expiryDate] = expiryDate.toEpochMillis()
-                it[Subscriptions.paymentChargeId] = paymentChargeId
-                it[Subscriptions.isActive] = true
+        withRetry {
+            suspendTransaction {
+                val now = LocalDateTime.now()
+                val expiryDate = now.toLocalDate().plusDays(durationDays.toLong()).atStartOfDay()
+
+                // Deactivate old subscriptions
+                Subscriptions.update({ Subscriptions.userId eq userId }) {
+                    it[isActive] = false
+                }
+
+                // Create new active subscription
+                Subscriptions.insert {
+                    it[Subscriptions.userId] = userId
+                    it[Subscriptions.type] = type.name
+                    it[Subscriptions.startDate] = now.toEpochMillis()
+                    it[Subscriptions.expiryDate] = expiryDate.toEpochMillis()
+                    it[Subscriptions.paymentChargeId] = paymentChargeId
+                    it[Subscriptions.isActive] = true
+                }
             }
         }
     }
-    
+
     suspend fun getSubscriptionExpiryDate(userId: Long): LocalDateTime? {
         return getActiveSubscription(userId)?.expiryDate
     }
-    
+
     suspend fun getSubscriptionType(userId: Long): SubscriptionType? {
         return getActiveSubscription(userId)?.type
     }
-    
+
     // ==================== PROMO CODE OPERATIONS ====================
     suspend fun validatePromoCode(code: String): PromoCode? {
         println("[DB] Validating promo code: $code")
-        return suspendTransaction {
-            val result = PromoCodes.selectAll().where {
-                (PromoCodes.code eq code) and
-                (PromoCodes.isActive eq true) and
-                (PromoCodes.currentUses less PromoCodes.maxUses)
-            }.firstOrNull()?.let { row ->
-                PromoCode(
-                    code = row[PromoCodes.code],
-                    durationDays = row[PromoCodes.durationDays],
-                    maxUses = row[PromoCodes.maxUses],
-                    currentUses = row[PromoCodes.currentUses],
-                    isActive = row[PromoCodes.isActive]
-                )
+        return withRetry {
+            suspendTransaction {
+                val result = PromoCodes.selectAll().where {
+                    (PromoCodes.code eq code) and
+                            (PromoCodes.isActive eq true) and
+                            (PromoCodes.currentUses less PromoCodes.maxUses)
+                }.firstOrNull()?.let { row ->
+                    PromoCode(
+                        code = row[PromoCodes.code],
+                        durationDays = row[PromoCodes.durationDays],
+                        maxUses = row[PromoCodes.maxUses],
+                        currentUses = row[PromoCodes.currentUses],
+                        isActive = row[PromoCodes.isActive]
+                    )
+                }
+                println("[DB] Promo code validation result: $result")
+                result
             }
-            println("[DB] Promo code validation result: $result")
-            result
         }
     }
-    
+
     suspend fun hasUserUsedPromoCode(userId: Long, code: String): Boolean {
         println("[DB] Checking if user $userId used promo code: $code")
-        return suspendTransaction {
-            val result = UsedPromoCodes.selectAll().where {
-                (UsedPromoCodes.userId eq userId) and
-                (UsedPromoCodes.promoCode eq code)
-            }.count() > 0
-            println("[DB] User has used code: $result")
-            result
+        return withRetry {
+            suspendTransaction {
+                val result = UsedPromoCodes.selectAll().where {
+                    (UsedPromoCodes.userId eq userId) and
+                            (UsedPromoCodes.promoCode eq code)
+                }.count() > 0
+                println("[DB] User has used code: $result")
+                result
+            }
         }
     }
-    
+
     suspend fun activatePromoCodeSubscription(userId: Long, promoCode: String, durationDays: Int) {
-        suspendTransaction {
-            val now = LocalDateTime.now()
-            val expiryDate = now.toLocalDate().plusDays(durationDays.toLong()).atStartOfDay()
-            
-            // Deactivate old subscriptions
-            Subscriptions.update({ Subscriptions.userId eq userId }) {
-                it[isActive] = false
-            }
-            
-            // Create new active subscription
-            Subscriptions.insert {
-                it[Subscriptions.userId] = userId
-                it[Subscriptions.type] = SubscriptionType.PROMO.name
-                it[Subscriptions.startDate] = now.toEpochMillis()
-                it[Subscriptions.expiryDate] = expiryDate.toEpochMillis()
-                it[Subscriptions.isActive] = true
-            }
-            
-            // Update promo code usage count
-            exec(
-                "UPDATE promo_codes SET current_uses = current_uses + 1 WHERE code = '$promoCode'"
-            )
+        withRetry {
+            suspendTransaction {
+                val now = LocalDateTime.now()
+                val expiryDate = now.toLocalDate().plusDays(durationDays.toLong()).atStartOfDay()
 
-            // Record usage
-            val alreadyUsed = UsedPromoCodes.selectAll().where {
-                (UsedPromoCodes.userId eq userId) and (UsedPromoCodes.promoCode eq promoCode)
-            }.count() > 0
+                // Deactivate old subscriptions
+                Subscriptions.update({ Subscriptions.userId eq userId }) {
+                    it[isActive] = false
+                }
 
-            if (!alreadyUsed) {
-                UsedPromoCodes.insert {
-                    it[UsedPromoCodes.userId] = userId
-                    it[UsedPromoCodes.promoCode] = promoCode
-                    it[usedAt] = LocalDateTime.now().toEpochMillis()
+                // Create new active subscription
+                Subscriptions.insert {
+                    it[Subscriptions.userId] = userId
+                    it[Subscriptions.type] = SubscriptionType.PROMO.name
+                    it[Subscriptions.startDate] = now.toEpochMillis()
+                    it[Subscriptions.expiryDate] = expiryDate.toEpochMillis()
+                    it[Subscriptions.isActive] = true
+                }
+
+                // Update promo code usage count
+                exec(
+                    "UPDATE promo_codes SET current_uses = current_uses + 1 WHERE code = '$promoCode'"
+                )
+
+                // Record usage
+                val alreadyUsed = UsedPromoCodes.selectAll().where {
+                    (UsedPromoCodes.userId eq userId) and (UsedPromoCodes.promoCode eq promoCode)
+                }.count() > 0
+
+                if (!alreadyUsed) {
+                    UsedPromoCodes.insert {
+                        it[UsedPromoCodes.userId] = userId
+                        it[UsedPromoCodes.promoCode] = promoCode
+                        it[usedAt] = LocalDateTime.now().toEpochMillis()
+                    }
                 }
             }
         }
@@ -324,3 +364,5 @@ data class SubscriptionInfo(
     val expiryDate: LocalDateTime,
     val paymentChargeId: String? = null
 )
+
+

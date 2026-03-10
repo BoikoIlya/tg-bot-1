@@ -29,8 +29,9 @@ dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 
-	implementation("io.github.dehuckakpyt.telegrambot:telegram-bot-core:1.1.0")
-	implementation("io.github.dehuckakpyt.telegrambot:telegram-bot-ktor:1.1.0")
+	implementation("io.github.dehuckakpyt.telegrambot:telegram-bot-core:1.1.1")
+	implementation("io.github.dehuckakpyt.telegrambot:telegram-bot-ktor:1.1.1")
+//	implementation("io.github.dehuckakpyt.telegrambot:telegram-bot-source-exposed:1.1.1")
 	implementation("io.ktor:ktor-server-netty:3.4.0")
 
 	implementation(libs.ktor.server.core.jvm)
