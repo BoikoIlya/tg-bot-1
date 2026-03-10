@@ -18,6 +18,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.concurrent.TimeUnit
 
 // ==================== USERS TABLE ====================
 object Users : Table("users") {
@@ -107,9 +108,7 @@ class DatabaseManager(
             driverClassName = "org.postgresql.Driver"
             maximumPoolSize = 10
             minimumIdle = 2
-            idleTimeout = 300_000 // 5 minutes //
-            maxLifetime = 600_000 // 10 minutes - critical for Heroku (they kill idle connections)
-            keepaliveTime = 30_000 // 30 seconds
+            maxLifetime = TimeUnit.MINUTES.toMillis(29)
             isAutoCommit = false
             transactionIsolation = "TRANSACTION_REPEATABLE_READ"
         }
