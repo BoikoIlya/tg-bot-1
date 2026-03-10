@@ -47,15 +47,9 @@ fun Application.configureTelegramBot() {
         receiving {
             longPolling {
                 limit = 10
-                timeout = 25  // 25 секунд (безопасно для Heroku)
-                retryDelay = 2000  // 2 секунды между ошибками
+                timeout = 25
+                retryDelay = 2000
             }
-
-//            callbackContentSource = { CallbackContentSource.inDatabase(maxCallbackContentsPerUser = 2) }
-//            chainSource = { ChainSource.chainSource() }
-//            telegramUserSource = { TelegramUserSource.inDatabase }
-//            telegramChatSource = { TelegramChatSource.inDatabase }
-//            telegramChatStatusEventSource = { TelegramChatStatusEventSource.inDatabase }
 
             exceptionHandler = {
                 CustomExceptionHandler(
