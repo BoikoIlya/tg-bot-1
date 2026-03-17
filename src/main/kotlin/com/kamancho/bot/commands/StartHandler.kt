@@ -57,14 +57,14 @@ fun BotHandling.startCommand() {
                 3. Get feedback and an audio response
 
                 ✅ Your subscription is active.
-                Send voice messages for analysis! 🎤
+                Send voice messages in spanish for analysis! 🎤
                 """.trimIndent()
             } else {
                 """
                 👋 Hi, ${chat.firstName ?: "friend"}!
 
                 ✅ Your subscription is active.
-                Send voice messages for analysis! 🎤
+                Send voice messages in spanish for analysis! 🎤
                 """.trimIndent()
             }
             sendMessage(
@@ -93,7 +93,7 @@ fun BotHandling.startCommand() {
                 3. Get feedback and an audio response
 
                 ✅ Your subscription is now active!
-                Send voice messages for analysis! 🎤
+                Send voice messages in spanish for analysis! 🎤
                 """.trimIndent()
             } else {
                 """
